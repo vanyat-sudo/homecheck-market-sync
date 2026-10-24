@@ -1,0 +1,29 @@
+name: HomeCheck enquiry auto-responder
+
+on:
+  schedule:
+    # Every 5 minutes (GitHub's minimum). GitHub may delay or skip scheduled starts.
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: homecheck-enquiry-autoresponder
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out scheduler
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4, pinned
+        with:
+          persist-credentials: false
+      - name: Check enquiries and send replies
+        env:
+          HOMECHECK_URL: ${{ vars.HOMECHECK_URL }}
+        run: node scripts/run-enquiry-scheduler.mjs
