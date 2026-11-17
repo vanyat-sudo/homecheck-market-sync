@@ -43,10 +43,27 @@ export async function runMarketScheduler({
     }
     throw new Error("Market sync exceeded the 30-minute runtime budget.");
   };
-  await call("/health");
+  const health = await call("/health");
+  if (!health.emailRecovery) throw new Error("Publish the updated HomeCheck app with scheduler email recovery before activating this workflow.");
+  const finishEmails = async () => {
+    while (now() < deadline) {
+      const delivery = await call("/emails/step", "POST");
+      if (!Number.isInteger(delivery.pending) || !Number.isInteger(delivery.needsReview)) {
+        throw new Error("Invalid email recovery response; delivery completion was not confirmed.");
+      }
+      log(JSON.stringify({ emailDelivery: delivery.counts, pending: delivery.pending, needsReview: delivery.needsReview }));
+      if (delivery.pending === 0) {
+        if (delivery.needsReview > 0) throw new Error("Some market emails require delivery review; they were not resent.");
+        return;
+      }
+      await delay(15_000);
+    }
+    throw new Error("Email recovery exceeded the runtime budget; pending deliveries remain saved for catch-up.");
+  };
   const started = await call("/start", "POST");
   if (started.skipped && started.status === "complete") {
     log("Today's scheduled collection is already complete. No additional source requests made.");
+    await finishEmails();
     return started;
   }
   if (!Number.isInteger(started.runId) || started.runId <= 0) throw new Error("Scheduler did not return a valid collection ID.");
@@ -62,6 +79,7 @@ export async function runMarketScheduler({
     const final = await call(`/runs/${runId}`);
     log(JSON.stringify({ runId, status: final.status, requests: final.requests, credits: final.credits, scopes: final.scopes }));
     if (final.status !== "complete") throw new Error("Market collection was incomplete; last good data is preserved. See Tracker's coverage ledger.");
+    await finishEmails();
     return final;
   }
   throw new Error("Market sync exceeded the 30-minute runtime budget; saved progress is retained.");
