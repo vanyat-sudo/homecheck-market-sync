@@ -2,8 +2,11 @@ name: HomeCheck daily market sync
 
 on:
   schedule:
-    # Brisbane is UTC+10 year-round. GitHub may delay scheduled starts.
-    - cron: "0 23 * * *"
+    # 6am Brisbane is 20:00 UTC on the previous day, year-round.
+    # Off-hour catch-ups at 6:17, 6:47 ... 9:47am tolerate a missed start.
+    # GitHub can delay starts; the API deduplicates completed daily runs.
+    - cron: "0 20 * * *"
+    - cron: "17,47 20-23 * * *"
   workflow_dispatch:
 
 permissions:
